@@ -8,3 +8,4 @@ Werkzeug==3.0.4
 gunicorn
 torch
 transformers
+pymysql
