@@ -2,8 +2,32 @@ from flask import Flask, render_template, request
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline, AutoConfig
 import torch.nn.functional as F
 import torch
+import pymysql
+import os
 
 app = Flask(__name__)
+
+# Database connection setup
+def get_db_connection():
+    return pymysql.connect(
+        host=os.getenv('RDS_HOST'), 
+        user=os.getenv('RDS_USER'), 
+        passwd=os.getenv('RDS_PASSWORD'),
+        db=os.getenv('RDS_DB')
+    )
+
+# Store data to database
+def store_to_db(user_id, troubling_scenario, before_text, after_text, score_before, score_after):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    sql = """
+        INSERT INTO sentiment_analysis (user_id, troubling_scenario, before_text, after_text, score_before, score_after)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """
+    cursor.execute(sql, (user_id, troubling_scenario, before_text, after_text, score_before, score_after))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 model_name = "cardiffnlp/twitter-roberta-base-sentiment-latest"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -105,6 +129,9 @@ def usu_page():
 
         emotion_before, score_before = predict_sentiment(before_text)
         emotion_after, score_after = predict_sentiment(after_text)
+        
+        # Store the data in the RDS database
+        store_to_db(user_id, troubling_scenario, before_text, after_text, round(score_before, 2), round(score_after, 2))
 
         return render_template('usu.html',
                                user_id=user_id,
