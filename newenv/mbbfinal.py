@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline, AutoConfig
-import torch.nn.functional as F
-import torch
+#from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline, AutoConfig
+#import torch.nn.functional as F
+#import torch
 import pymysql
 import os
 
@@ -16,6 +16,20 @@ def get_db_connection():
         db=os.getenv('RDS_DB')
     )
 
+import requests
+
+API_URL = "https://hw6z6nsvw90cqbn7.us-east-1.aws.endpoints.huggingface.cloud"
+headers = {
+	"Accept" : "application/json",
+	"Authorization": os.getenv('HF_AUTHTOKEN'),
+	"Content-Type": "application/json" 
+}
+
+def query(payload):
+	response = requests.post(API_URL, headers=headers, json=payload)
+	return response.json()
+
+
 # Store data to database
 def store_to_db(user_id, troubling_scenario, before_text, after_text, score_before, score_after):
     conn = get_db_connection()
@@ -29,9 +43,9 @@ def store_to_db(user_id, troubling_scenario, before_text, after_text, score_befo
     cursor.close()
     conn.close()
 
-model_name = "cardiffnlp/twitter-roberta-base-sentiment-latest"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSequenceClassification.from_pretrained(model_name)
+#model_name = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+#tokenizer = AutoTokenizer.from_pretrained(model_name)
+#model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
 
 # sentiment scoring logic
@@ -62,13 +76,25 @@ def get_adjusted_score(sentiment_scores):
 
 # sentiment label logic
 def predict_sentiment(text):
-    input_ids = tokenizer(text, return_tensors="pt")["input_ids"]
-    with torch.no_grad():
-        outputs = model(input_ids=input_ids)
-        logits = outputs.logits[0]
-        prob = F.softmax(logits, dim=-1).numpy()
+    #input_ids = tokenizer(text, return_tensors="pt")["input_ids"]
+    #with torch.no_grad():
+    #    outputs = model(input_ids=input_ids)
+    #    logits = outputs.logits[0]
+    #    prob = F.softmax(logits, dim=-1).numpy()
+        
+    sent = query({
+        "inputs": text,
+        "parameters": {
+                "top_k": 3
+        }
+    })
+    
+    prob_dict = {d["label"]: d["score"] for d in sent}
+    
+    pos_score = prob_dict['positive']
+    neg_score = prob_dict['negative']
 
-    adjusted_score = prob[2] - prob[0]
+    adjusted_score = pos_score - neg_score
 
     if adjusted_score < -0.25:
         label = "Strongly Negative"
@@ -98,6 +124,8 @@ def public_page():
     if request.method == 'POST':
         emotion_before, score_before = predict_sentiment(before_text)
         emotion_after, score_after = predict_sentiment(after_text)
+        
+
 
         return render_template('public.html',
                                troubling_scenario=troubling_scenario,
