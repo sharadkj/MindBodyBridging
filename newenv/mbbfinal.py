@@ -21,7 +21,7 @@ import requests
 API_URL = "https://hw6z6nsvw90cqbn7.us-east-1.aws.endpoints.huggingface.cloud"
 headers = {
 	"Accept" : "application/json",
-	"Authorization": os.getenv('HF_AUTHTOKEN'),
+	"Authorization": "Bearer " + os.getenv('HF_AUTHTOKEN'),
 	"Content-Type": "application/json" 
 }
 
