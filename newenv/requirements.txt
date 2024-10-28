@@ -7,3 +7,4 @@ MarkupSafe==3.0.1
 Werkzeug==3.0.4
 gunicorn
 pymysql
+requests
